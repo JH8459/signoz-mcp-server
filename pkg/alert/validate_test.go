@@ -1305,3 +1305,15 @@ func TestValidate_InvalidSourceValueRejected(t *testing.T) {
 		t.Errorf("expected source error, got: %v", err)
 	}
 }
+
+func TestValidate_ExplicitSchemaVersionPassesThrough(t *testing.T) {
+	rule := minimalValidAlert()
+	rule["schemaVersion"] = "v1"
+	out, err := ValidateFromMap(rule)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(string(out), `"schemaVersion":"v1"`) {
+		t.Fatalf("explicit schemaVersion was overwritten: %s", out)
+	}
+}
