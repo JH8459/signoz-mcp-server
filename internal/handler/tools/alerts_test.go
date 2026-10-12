@@ -648,7 +648,9 @@ func TestHandleCreateAlert(t *testing.T) {
 	if parsed["schemaVersion"] != "v2alpha1" {
 		t.Errorf("expected schemaVersion=v2alpha1, got %v", parsed["schemaVersion"])
 	}
-	assertForwardedMetricAlertBounds(t, parsed)
+	if _, present := parsed["condition"].(map[string]any)["compositeQuery"].(map[string]any)["queries"].([]any)[0].(map[string]any)["spec"].(map[string]any)["limit"]; present {
+		t.Error("limit must not be injected into alert queries; it caps grouped evaluation to the top-N series")
+	}
 }
 
 func TestHandleCreateAlert_StripsSearchContext(t *testing.T) {
@@ -1761,7 +1763,9 @@ func TestHandleUpdateAlert(t *testing.T) {
 	if _, present := parsed["ruleId"]; present {
 		t.Error("ruleId should be stripped from the rule body before sending")
 	}
-	assertForwardedMetricAlertBounds(t, parsed)
+	if _, present := parsed["condition"].(map[string]any)["compositeQuery"].(map[string]any)["queries"].([]any)[0].(map[string]any)["spec"].(map[string]any)["limit"]; present {
+		t.Error("limit must not be injected into alert queries; it caps grouped evaluation to the top-N series")
+	}
 }
 
 func TestHandleUpdateAlert_PolicyRoutingAllowsNoChannels(t *testing.T) {
@@ -1847,22 +1851,6 @@ func TestHandleUpdateAlert_PolicyRoutingRejectsNonArrayChannelsBeforeCalls(t *te
 	text := result.Content[0].(*mcp.TextContent).Text
 	if !strings.Contains(text, "condition.thresholds.spec[0].channels") || !strings.Contains(text, "must be an array") {
 		t.Fatalf("unexpected validation error: %q", text)
-	}
-}
-
-func assertForwardedMetricAlertBounds(t *testing.T, rule map[string]any) {
-	t.Helper()
-	spec := rule["condition"].(map[string]any)["compositeQuery"].(map[string]any)["queries"].([]any)[0].(map[string]any)["spec"].(map[string]any)
-	if spec["limit"] != float64(types.DefaultAggregateQueryLimit) {
-		t.Fatalf("forwarded alert limit = %v, want %d", spec["limit"], types.DefaultAggregateQueryLimit)
-	}
-	order, ok := spec["order"].([]any)
-	if !ok || len(order) != 1 {
-		t.Fatalf("forwarded alert order = %v, want one entry", spec["order"])
-	}
-	entry := order[0].(map[string]any)
-	if entry["direction"] != "desc" || entry["key"].(map[string]any)["name"] != "__result" {
-		t.Fatalf("forwarded alert order = %v, want __result desc", order)
 	}
 }
 
